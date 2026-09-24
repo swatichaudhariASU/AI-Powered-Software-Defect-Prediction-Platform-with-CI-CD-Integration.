@@ -1,6 +1,5 @@
 # AI-Powered Software Defect Predictor
 
-Month 1 foundation for a 10-month software defect prediction project.
 
 ## objective
 
