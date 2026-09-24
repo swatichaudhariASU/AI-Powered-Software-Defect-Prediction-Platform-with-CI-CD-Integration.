@@ -1,0 +1,4 @@
+repository,url,language
+# Add one public Python GitHub repository per row.
+# Example:
+# example-repo,https://github.com/OWNER/REPOSITORY.git,Python

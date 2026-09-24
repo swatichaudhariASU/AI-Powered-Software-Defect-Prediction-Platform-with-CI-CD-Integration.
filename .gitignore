@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment/secrets
+.env
+.env.*
+!.env.example
+
+# Generated data
+data/raw/repositories/*
+!data/raw/repositories/.gitkeep
+data/raw/*.csv
+data/processed/*.csv
+
+# Model artifacts
+ml/models/*
+!ml/models/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
