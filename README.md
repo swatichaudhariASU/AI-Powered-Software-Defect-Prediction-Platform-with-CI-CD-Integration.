@@ -2,7 +2,7 @@
 
 Month 1 foundation for a 10-month software defect prediction project.
 
-## Month 1 objective
+## objective
 
 Build the research and data foundation before model training:
 1. Understand the defect prediction problem.
