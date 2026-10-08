@@ -6,21 +6,23 @@ from backend.app.api.predictions import router as prediction_router
 from backend.app.services.model_service import model_service
 
 app = FastAPI(
-    title="AI Software Defect Predictor",
-    version="0.1.0",
-    description="API for software quality analysis and AI-powered defect-risk prediction.",
+    title="AI-Powered Software Defect Prediction API",
+    version="0.2.0",
+    description=(
+        "Backend service for validating software metrics, loading a saved "
+        "defect-prediction model, and serving defect-risk predictions."
+    ),
 )
 
 app.include_router(prediction_router)
 
 
 @app.get("/health", tags=["system"])
-def health():
-    """Return application health status."""
-    return {"status": "ok"}
-
-
-@app.get("/model-info", tags=["system"])
-def model_info():
-    """Return information about the current prediction model."""
-    return model_service.get_model_info()
+def health() -> dict:
+    """Return API health plus current model-loading state."""
+    info = model_service.get_model_info()
+    return {
+        "status": "ok",
+        "model_loaded": info["model_loaded"],
+        "model_version": info["model_version"],
+    }
