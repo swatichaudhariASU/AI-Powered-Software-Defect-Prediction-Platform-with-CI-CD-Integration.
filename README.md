@@ -78,3 +78,31 @@ python ml/src/explore_dataset.py
 
 Month 1 intentionally does not include AWS, React, SHAP, XGBoost, PostgreSQL,
 production deployment, authentication, or automated retraining.
+
+## Backend model integration
+
+The FastAPI backend now supports a saved-model loading contract for defect-risk prediction.
+
+Run tests:
+
+```bash
+pytest -q
+```
+
+Start the API with the finalized research model at `ml/models/best_model.joblib`:
+
+```bash
+uvicorn backend.app.main:app --reload
+```
+
+If the finalized model has not been handed off yet, create a synthetic artifact only for local integration testing:
+
+```bash
+python ml/src/create_demo_model_artifact.py
+export DEFECT_MODEL_PATH=ml/models/demo_model.joblib
+uvicorn backend.app.main:app --reload
+```
+
+Open `http://127.0.0.1:8000/docs` and review `/health`, `/model/info`, and `/predict`.
+
+The synthetic artifact is for software integration verification only and is not a research result.
