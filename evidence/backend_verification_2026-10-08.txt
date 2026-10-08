@@ -1,0 +1,26 @@
+Backend integration verification, October 8, 2026
+
+Command:
+pytest -q tests/test_backend_api.py
+
+Result:
+7 passed in 0.81s
+
+Synthetic integration artifact check:
+- Demo artifact created with ml/src/create_demo_model_artifact.py
+- GET /health -> 200, model_loaded=true
+- GET /model/info -> 200
+- POST /predict -> 200
+- Example integration-only response:
+  status=prediction_complete
+  defect_prediction=1
+  defect_probability=0.5784
+  risk_level=MEDIUM
+  model_name=LogisticRegression
+  model_version=synthetic-integration-demo-v1
+
+Research integrity note:
+The demo artifact is trained on synthetic data only to verify model loading and API integration. These values are not research results and should not be reported as model-performance findings.
+
+Full-project pytest note:
+The container used for this verification did not have GitPython installed, so tests/test_environment.py could not import the `git` package. GitPython is already listed in requirements.txt. The backend test suite itself passed 7/7.

@@ -1,0 +1,11 @@
+{
+  "loc": 250,
+  "cyclomatic_complexity": 12,
+  "function_count": 8,
+  "class_count": 2,
+  "commit_count": 24,
+  "author_count": 5,
+  "lines_added": 480,
+  "lines_deleted": 210,
+  "churn": 690
+}
