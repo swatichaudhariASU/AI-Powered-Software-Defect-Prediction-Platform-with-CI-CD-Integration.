@@ -23,6 +23,7 @@ data/processed/*.csv
 # Model artifacts
 ml/models/*
 !ml/models/.gitkeep
+!ml/models/README.md
 
 # OS
 .DS_Store
