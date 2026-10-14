@@ -106,3 +106,19 @@ uvicorn backend.app.main:app --reload
 Open `http://127.0.0.1:8000/docs` and review `/health`, `/model/info`, and `/predict`.
 
 The synthetic artifact is for software integration verification only and is not a research result.
+
+
+## ML training and evaluation
+
+The ML workstream includes baseline Logistic Regression and Random Forest pipelines, held-out evaluation (precision, recall, F1, PR-AUC, and ROC-AUC where defined), model comparison output, and a versioned Joblib artifact contract.
+
+After repository metrics and preliminary labels have been generated, run:
+
+```bash
+python -m ml.src.build_features
+python -m ml.src.label_data
+python -m ml.src.train_models
+pytest -q
+```
+
+The training script expects `data/processed/preliminary_dataset.csv`. Repository clones and generated CSVs are intentionally not included in this source ZIP. The keyword-based `candidate_defect` labels are noisy preliminary labels, not confirmed defect ground truth. See [`docs/swati_two_week_plan.md`](docs/swati_two_week_plan.md) for the ML work plan and limitations.
