@@ -1,0 +1,49 @@
+{
+  "model_info": {
+    "model_loaded": true,
+    "model_name": "LogisticRegression",
+    "model_version": "synthetic-integration-demo-v1",
+    "target": "defects",
+    "features": [
+      "loc",
+      "cyclomatic_complexity",
+      "function_count",
+      "class_count",
+      "commit_count",
+      "author_count",
+      "lines_added",
+      "lines_deleted",
+      "churn"
+    ],
+    "model_path": "ml/models/demo_model.joblib",
+    "risk_thresholds": {
+      "medium": 0.4,
+      "high": 0.7
+    },
+    "evaluation_metrics": null
+  },
+  "prediction_request": {
+    "loc": 250,
+    "cyclomatic_complexity": 12,
+    "function_count": 8,
+    "class_count": 2,
+    "commit_count": 24,
+    "author_count": 5,
+    "lines_added": 480,
+    "lines_deleted": 210,
+    "churn": 690
+  },
+  "prediction_response": {
+    "status": "prediction_complete",
+    "defect_prediction": 1,
+    "defect_probability": 0.5784,
+    "risk_level": "MEDIUM",
+    "model_name": "LogisticRegression",
+    "model_version": "synthetic-integration-demo-v1",
+    "feature_count": 9,
+    "risk_thresholds": {
+      "medium": 0.4,
+      "high": 0.7
+    }
+  }
+}
