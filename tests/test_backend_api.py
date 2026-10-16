@@ -1,4 +1,4 @@
-"""Tests for the FastAPI backend and model-loading flow."""
+"""Tests for the FastAPI prediction API, validation, and risk output."""
 
 from pathlib import Path
 
@@ -45,7 +45,15 @@ def build_test_artifact(path: Path) -> None:
             "model": model,
             "features": DEFAULT_FEATURES,
             "target": "defects",
-            "model_version": "test-model-v1",
+            "model_version": "test-model-v2",
+            "metadata": {
+                "evaluation_metrics": {
+                    "precision": 0.80,
+                    "recall": 0.75,
+                    "f1": 0.77,
+                    "pr_auc": 0.82,
+                }
+            },
         },
         path,
     )
@@ -59,21 +67,28 @@ def loaded_test_model(tmp_path, monkeypatch):
     monkeypatch.setattr(model_service, "_artifact", None)
     model_service.load(required=True)
     yield artifact_path
+    model_service.unload()
 
 
-def test_health_endpoint():
+def test_health_endpoint_includes_thresholds():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
-    assert isinstance(response.json()["model_loaded"], bool)
+    body = response.json()
+    assert body["status"] == "ok"
+    assert isinstance(body["model_loaded"], bool)
+    assert body["risk_thresholds"] == {"medium": 0.4, "high": 0.7}
 
 
-def test_model_info_endpoint_exposes_feature_contract():
+def test_model_info_endpoint_exposes_feature_contract_and_metrics(loaded_test_model):
     response = client.get("/model/info")
     assert response.status_code == 200
     body = response.json()
     assert body["features"] == DEFAULT_FEATURES
     assert body["target"] == "defects"
+    assert body["model_version"] == "test-model-v2"
+    assert body["risk_thresholds"] == {"medium": 0.4, "high": 0.7}
+    assert body["evaluation_metrics"]["f1"] == 0.77
+    assert body["evaluation_metrics"]["pr_auc"] == 0.82
 
 
 def test_model_service_loads_saved_artifact(tmp_path):
@@ -82,11 +97,11 @@ def test_model_service_loads_saved_artifact(tmp_path):
     service = ModelService(model_path=artifact_path)
     assert service.load(required=True) is True
     assert service.is_loaded is True
-    assert service.model_version == "test-model-v1"
+    assert service.model_version == "test-model-v2"
     assert service.features == DEFAULT_FEATURES
 
 
-def test_prediction_endpoint_returns_model_output(loaded_test_model):
+def test_prediction_endpoint_returns_probability_and_risk(loaded_test_model):
     response = client.post("/predict", json=valid_payload())
     assert response.status_code == 200
     body = response.json()
@@ -94,7 +109,9 @@ def test_prediction_endpoint_returns_model_output(loaded_test_model):
     assert body["defect_prediction"] in [0, 1]
     assert 0.0 <= body["defect_probability"] <= 1.0
     assert body["risk_level"] in ["LOW", "MEDIUM", "HIGH"]
-    assert body["model_version"] == "test-model-v1"
+    assert body["model_version"] == "test-model-v2"
+    assert body["feature_count"] == len(DEFAULT_FEATURES)
+    assert body["risk_thresholds"] == {"medium": 0.4, "high": 0.7}
 
 
 def test_prediction_endpoint_returns_503_without_model(tmp_path, monkeypatch):
@@ -118,3 +135,27 @@ def test_prediction_endpoint_rejects_unknown_metrics():
     payload["unknown_metric"] = 1
     response = client.post("/predict", json=payload)
     assert response.status_code == 422
+
+
+def test_prediction_endpoint_rejects_missing_metric():
+    payload = valid_payload()
+    payload.pop("churn")
+    response = client.post("/predict", json=payload)
+    assert response.status_code == 422
+
+
+def test_prediction_endpoint_rejects_non_finite_metric():
+    payload = valid_payload()
+    payload["cyclomatic_complexity"] = "NaN"
+    response = client.post("/predict", json=payload)
+    assert response.status_code == 422
+
+
+def test_risk_level_boundaries(tmp_path):
+    service = ModelService(model_path=tmp_path / "unused.joblib")
+    assert service.risk_level(0.0) == "LOW"
+    assert service.risk_level(0.3999) == "LOW"
+    assert service.risk_level(0.40) == "MEDIUM"
+    assert service.risk_level(0.6999) == "MEDIUM"
+    assert service.risk_level(0.70) == "HIGH"
+    assert service.risk_level(1.0) == "HIGH"
