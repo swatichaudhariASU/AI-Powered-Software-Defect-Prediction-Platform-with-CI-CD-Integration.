@@ -7,10 +7,10 @@ from backend.app.services.model_service import model_service
 
 app = FastAPI(
     title="AI-Powered Software Defect Prediction API",
-    version="0.2.0",
+    version="0.3.0",
     description=(
         "Backend service for validating software metrics, loading a saved "
-        "defect-prediction model, and serving defect-risk predictions."
+        "defect-prediction model, and serving probability-based defect-risk predictions."
     ),
 )
 
@@ -25,4 +25,5 @@ def health() -> dict:
         "status": "ok",
         "model_loaded": info["model_loaded"],
         "model_version": info["model_version"],
+        "risk_thresholds": info["risk_thresholds"],
     }
