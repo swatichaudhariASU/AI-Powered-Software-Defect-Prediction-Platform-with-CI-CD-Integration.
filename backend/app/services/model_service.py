@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,9 @@ DEFAULT_FEATURES = [
     "lines_deleted",
     "churn",
 ]
+
+DEFAULT_MEDIUM_RISK_THRESHOLD = 0.40
+DEFAULT_HIGH_RISK_THRESHOLD = 0.70
 
 
 class ModelNotReadyError(RuntimeError):
@@ -51,7 +55,25 @@ class ModelService:
             or configured_path
             or project_root / "ml" / "models" / "best_model.joblib"
         )
+        self.medium_risk_threshold = self._read_threshold(
+            "DEFECT_MEDIUM_RISK_THRESHOLD", DEFAULT_MEDIUM_RISK_THRESHOLD
+        )
+        self.high_risk_threshold = self._read_threshold(
+            "DEFECT_HIGH_RISK_THRESHOLD", DEFAULT_HIGH_RISK_THRESHOLD
+        )
+        if self.medium_risk_threshold >= self.high_risk_threshold:
+            raise ValueError(
+                "DEFECT_MEDIUM_RISK_THRESHOLD must be lower than "
+                "DEFECT_HIGH_RISK_THRESHOLD."
+            )
         self._artifact: dict[str, Any] | None = None
+
+    @staticmethod
+    def _read_threshold(name: str, default: float) -> float:
+        value = float(os.getenv(name, default))
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(f"{name} must be between 0 and 1.")
+        return value
 
     @property
     def is_loaded(self) -> bool:
@@ -64,9 +86,9 @@ class ModelService:
     def load(self, required: bool = False) -> bool:
         """Load the configured model artifact.
 
-        The preferred artifact format is a dictionary containing:
-        model, features, target, and optional model_version metadata.
-        A raw scikit-learn estimator is also accepted for compatibility.
+        Preferred artifact format:
+        model, features, target, model_version, and optional metadata.
+        A raw scikit-learn estimator remains supported for compatibility.
         """
         if not self.model_path.exists():
             self._artifact = None
@@ -77,7 +99,13 @@ class ModelService:
                 )
             return False
 
-        saved = joblib.load(self.model_path)
+        try:
+            saved = joblib.load(self.model_path)
+        except Exception as exc:
+            self._artifact = None
+            raise ModelArtifactError(
+                f"Unable to load model artifact at {self.model_path}: {exc}"
+            ) from exc
 
         if isinstance(saved, dict) and "model" in saved:
             model = saved["model"]
@@ -144,6 +172,12 @@ class ModelService:
             return str(self._artifact["model_version"])
         return None
 
+    @property
+    def metadata(self) -> dict[str, Any]:
+        if self.is_loaded:
+            return dict(self._artifact.get("metadata") or {})
+        return {}
+
     def model_name(self) -> str | None:
         if not self.is_loaded:
             return None
@@ -151,6 +185,12 @@ class ModelService:
         if hasattr(model, "named_steps") and "model" in model.named_steps:
             return type(model.named_steps["model"]).__name__
         return type(model).__name__
+
+    def risk_thresholds(self) -> dict[str, float]:
+        return {
+            "medium": self.medium_risk_threshold,
+            "high": self.high_risk_threshold,
+        }
 
     def get_model_info(self) -> dict[str, Any]:
         """Return model status without failing when the artifact is not present."""
@@ -160,6 +200,10 @@ class ModelService:
             except (ModelArtifactError, ValueError, TypeError):
                 self._artifact = None
 
+        evaluation_metrics = self.metadata.get("evaluation_metrics")
+        if evaluation_metrics is not None and not isinstance(evaluation_metrics, dict):
+            evaluation_metrics = None
+
         return {
             "model_loaded": self.is_loaded,
             "model_name": self.model_name(),
@@ -167,6 +211,8 @@ class ModelService:
             "target": self.target,
             "features": self.features,
             "model_path": str(self.model_path),
+            "risk_thresholds": self.risk_thresholds(),
+            "evaluation_metrics": evaluation_metrics,
         }
 
     def validate_metrics(self, metrics: dict[str, float]) -> None:
@@ -183,6 +229,16 @@ class ModelService:
                 "Metrics must be non-negative. Invalid metrics: " + ", ".join(negative)
             )
 
+        non_finite = sorted(
+            name for name, value in metrics.items()
+            if isinstance(value, float) and not math.isfinite(value)
+        )
+        if non_finite:
+            raise ValueError(
+                "Metrics must be finite numbers. Invalid metrics: "
+                + ", ".join(non_finite)
+            )
+
     def predict(self, metrics: dict[str, float]) -> dict[str, Any]:
         """Return a defect prediction using the configured saved model."""
         self._ensure_loaded()
@@ -195,13 +251,7 @@ class ModelService:
 
         prediction = int(self.model.predict(row)[0])
         probability = self._defect_probability(row=row, prediction=prediction)
-
-        if probability >= 0.70:
-            risk_level = "HIGH"
-        elif probability >= 0.40:
-            risk_level = "MEDIUM"
-        else:
-            risk_level = "LOW"
+        risk_level = self.risk_level(probability)
 
         return {
             "status": "prediction_complete",
@@ -210,7 +260,19 @@ class ModelService:
             "risk_level": risk_level,
             "model_name": self.model_name(),
             "model_version": self.model_version,
+            "feature_count": len(self.features),
+            "risk_thresholds": self.risk_thresholds(),
         }
+
+    def risk_level(self, probability: float) -> str:
+        """Convert a defect probability into LOW, MEDIUM, or HIGH risk."""
+        if not 0.0 <= probability <= 1.0:
+            raise ValueError("Defect probability must be between 0 and 1.")
+        if probability >= self.high_risk_threshold:
+            return "HIGH"
+        if probability >= self.medium_risk_threshold:
+            return "MEDIUM"
+        return "LOW"
 
     def _defect_probability(self, row: pd.DataFrame, prediction: int) -> float:
         if not hasattr(self.model, "predict_proba"):
@@ -219,10 +281,15 @@ class ModelService:
         probabilities = self.model.predict_proba(row)[0]
         classes = list(getattr(self.model, "classes_", []))
         if 1 in classes:
-            return float(probabilities[classes.index(1)])
-        if len(probabilities) == 2:
-            return float(probabilities[1])
-        return float(max(probabilities))
+            probability = float(probabilities[classes.index(1)])
+        elif len(probabilities) == 2:
+            probability = float(probabilities[1])
+        else:
+            probability = float(max(probabilities))
+
+        if not math.isfinite(probability):
+            raise ModelArtifactError("Model returned a non-finite probability.")
+        return min(max(probability, 0.0), 1.0)
 
 
 model_service = ModelService()
