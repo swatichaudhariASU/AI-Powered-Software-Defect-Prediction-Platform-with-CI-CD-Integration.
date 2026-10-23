@@ -60,3 +60,23 @@ class ModelInfoResponse(BaseModel):
     model_path: str
     risk_thresholds: dict[str, float]
     evaluation_metrics: dict[str, Any] | None = None
+
+
+class FilePredictionRequest(BaseModel):
+    file_path: str = Field(
+        min_length=1,
+        description="Absolute path to a Python source file inside a Git repository.",
+    )
+
+
+class FilePredictionResponse(BaseModel):
+    file_path: str
+    metrics: dict[str, float | int]
+    status: str
+    defect_prediction: int
+    defect_probability: float
+    risk_level: str
+    model_name: str | None = None
+    model_version: str | None = None
+    feature_count: int
+    risk_thresholds: dict[str, float]
