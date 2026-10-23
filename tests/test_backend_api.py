@@ -5,6 +5,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 import pytest
+from git import Repo
 from fastapi.testclient import TestClient
 from sklearn.linear_model import LogisticRegression
 
@@ -159,3 +160,100 @@ def test_risk_level_boundaries(tmp_path):
     assert service.risk_level(0.6999) == "MEDIUM"
     assert service.risk_level(0.70) == "HIGH"
     assert service.risk_level(1.0) == "HIGH"
+
+
+
+def create_test_git_repo(tmp_path: Path) -> Path:
+    """Create a small Git repository containing one Python file."""
+    repo_path = tmp_path / "sample_repo"
+    repo_path.mkdir()
+
+    repo = Repo.init(repo_path)
+
+    with repo.config_writer() as config:
+        config.set_value("user", "name", "Test User")
+        config.set_value("user", "email", "test@example.com")
+
+    source_file = repo_path / "sample.py"
+    source_file.write_text(
+        """
+def calculate_total(values):
+    total = 0
+    for value in values:
+        if value > 0:
+            total += value
+    return total
+""".strip()
+    )
+
+    repo.index.add(["sample.py"])
+    repo.index.commit("Add sample Python file")
+
+    return source_file
+
+
+def test_file_prediction_endpoint_returns_prediction(
+    tmp_path,
+    loaded_test_model,
+):
+    source_file = create_test_git_repo(tmp_path)
+
+    response = client.post(
+        "/predict/file",
+        json={"file_path": str(source_file)},
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["file_path"] == str(source_file)
+    assert "metrics" in body
+    assert body["metrics"]["loc"] > 0
+    assert "cyclomatic_complexity" in body["metrics"]
+    assert "commit_count" in body["metrics"]
+
+    assert body["status"] == "prediction_complete"
+    assert body["defect_prediction"] in [0, 1]
+    assert 0.0 <= body["defect_probability"] <= 1.0
+    assert body["risk_level"] in ["LOW", "MEDIUM", "HIGH"]
+
+
+def test_file_prediction_endpoint_returns_404_for_missing_file(
+    loaded_test_model,
+):
+    response = client.post(
+        "/predict/file",
+        json={
+            "file_path": "/tmp/file_that_does_not_exist_12345.py"
+        },
+    )
+
+    assert response.status_code == 404
+
+
+def test_file_prediction_endpoint_rejects_non_python_file(
+    tmp_path,
+    loaded_test_model,
+):
+    repo_path = tmp_path / "text_repo"
+    repo_path.mkdir()
+
+    repo = Repo.init(repo_path)
+
+    with repo.config_writer() as config:
+        config.set_value("user", "name", "Test User")
+        config.set_value("user", "email", "test@example.com")
+
+    text_file = repo_path / "README.md"
+    text_file.write_text("Test repository")
+
+    repo.index.add(["README.md"])
+    repo.index.commit("Add README")
+
+    response = client.post(
+        "/predict/file",
+        json={"file_path": str(text_file)},
+    )
+
+    assert response.status_code == 422
