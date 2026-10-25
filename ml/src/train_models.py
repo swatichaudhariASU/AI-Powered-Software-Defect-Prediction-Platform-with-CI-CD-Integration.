@@ -86,6 +86,9 @@ def train(input_path: Path = INPUT) -> dict[str, Any]:
         raise ValueError(f"Dataset is missing required columns: {missing}")
 
     frame = frame[FEATURES + [TARGET]].copy()
+    duplicate_rows = int(frame.duplicated().sum())
+    if duplicate_rows:
+        frame = frame.drop_duplicates().copy()
     for feature in FEATURES:
         frame[feature] = pd.to_numeric(frame[feature], errors="coerce")
     frame[TARGET] = pd.to_numeric(frame[TARGET], errors="coerce")
@@ -120,6 +123,7 @@ def train(input_path: Path = INPUT) -> dict[str, Any]:
     report = {
         "input_file": str(input_path.relative_to(ROOT)) if input_path.is_relative_to(ROOT) else str(input_path),
         "row_count": int(len(frame)),
+        "duplicate_rows_removed": duplicate_rows,
         "train_rows": int(len(x_train)),
         "test_rows": int(len(x_test)),
         "class_distribution": {str(k): int(v) for k, v in y.value_counts().sort_index().items()},
@@ -132,6 +136,33 @@ def train(input_path: Path = INPUT) -> dict[str, Any]:
         "selected_model": winner,
     }
     (REPORT_DIR / "model_comparison.json").write_text(json.dumps(report, indent=2) + "\n")
+    # Flat table is convenient for reviews and dashboard handoff.
+    pd.DataFrame.from_dict(results, orient="index").rename_axis("model").reset_index().to_csv(
+        REPORT_DIR / "model_comparison.csv", index=False
+    )
+
+    # Export interpretable feature importance for both baseline models.
+    importance_rows = []
+    for name, fitted_model in fitted.items():
+        estimator = fitted_model.named_steps["model"]
+        if hasattr(estimator, "feature_importances_"):
+            values = estimator.feature_importances_
+            method = "random_forest_impurity_importance"
+        elif hasattr(estimator, "coef_"):
+            values = np.abs(estimator.coef_[0])
+            method = "absolute_logistic_regression_coefficient"
+        else:
+            continue
+        for feature, value in zip(FEATURES, values):
+            importance_rows.append({
+                "model": name,
+                "feature": feature,
+                "importance": float(value),
+                "importance_method": method,
+            })
+    pd.DataFrame(importance_rows).sort_values(
+        ["model", "importance"], ascending=[True, False]
+    ).to_csv(REPORT_DIR / "feature_importance.csv", index=False)
     artifact = {
         "model": fitted[winner],
         "features": FEATURES,
