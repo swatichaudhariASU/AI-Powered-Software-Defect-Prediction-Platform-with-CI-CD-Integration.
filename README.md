@@ -117,10 +117,9 @@ After repository metrics and preliminary labels have been generated, run:
 ```bash
 python -m ml.src.build_features
 python -m ml.src.label_data
+python -m ml.src.validate_dataset
 python -m ml.src.train_models
 pytest -q
 ```
-
-
 
 
