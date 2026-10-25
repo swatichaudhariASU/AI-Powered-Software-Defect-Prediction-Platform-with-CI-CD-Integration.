@@ -122,3 +122,14 @@ pytest -q
 ```
 
 The training script expects `data/processed/preliminary_dataset.csv`. Repository clones and generated CSVs are intentionally not included in this source ZIP. The keyword-based `candidate_defect` labels are noisy preliminary labels, not confirmed defect ground truth. See [`docs/swati_two_week_plan.md`](docs/swati_two_week_plan.md) for the ML work plan and limitations.
+
+
+## Swati's October ML work: evaluation and label audit
+
+For the October 12–16 work, the training script compares Logistic Regression and Random Forest using precision, recall, F1, PR-AUC, and ROC-AUC where defined. It writes JSON/CSV comparison reports and feature-importance data under `reports/ml/`. For October 19–23, audit candidate labels against commit-message keywords and issue references:
+
+```bash
+python -m ml.src.validate_labels
+```
+
+This creates `reports/labels/label_audit.csv` and `label_audit_summary.json`. The audit is heuristic and flags rows for review; it does not establish ground-truth defect labels. See `docs/swati_oct12_oct23_work_plan.md` for the day-by-day work split.
