@@ -68,6 +68,14 @@ Create preliminary candidate labels:
 python ml/src/label_data.py
 ```
 
+Audit candidate labels against commit-message keywords and issue/PR references:
+
+```bash
+python -m ml.src.audit_defect_labels
+```
+
+The audit writes `reports/labels/label_audit.csv` and `reports/labels/label_audit_summary.json`. It flags evidence for manual review and does not automatically declare labels false or rewrite them. See `docs/swati_week3_label_validation.md`.
+
 Run data-quality analysis:
 
 ```bash
@@ -122,4 +130,13 @@ python -m ml.src.train_models
 pytest -q
 ```
 
+## Unseen-repository evaluation
 
+After generating `data/processed/preliminary_dataset.csv` from at least two cloned repositories, evaluate generalization without splitting files from the same repository across train and test:
+
+```bash
+python -m ml.src.evaluate_unseen_repositories
+pytest -q tests/test_unseen_repository_evaluation.py
+```
+
+The evaluator writes metrics, per-file predictions, per-repository metrics, and feature-importance reports under `reports/ml/`. It refuses to fall back to a random file-level split if a valid repository-level split is unavailable. Candidate labels are keyword-derived and must not be treated as confirmed defect ground truth. See `docs/swati_week4_unseen_repository_evaluation.md`.
