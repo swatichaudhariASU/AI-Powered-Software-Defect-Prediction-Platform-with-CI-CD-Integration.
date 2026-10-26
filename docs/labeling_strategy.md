@@ -21,3 +21,13 @@ The files changed by candidate commits receive a preliminary positive associatio
 
 Therefore these labels should not be described as ground truth. Later work should compare
 issue-linked labeling and SZZ-style approaches and document label noise.
+
+
+## Week 3 evidence audit
+
+Run `python -m ml.src.audit_defect_labels` after generating `git_commit_files.csv`
+and `preliminary_dataset.csv`. The tool flags candidate labels using commit-message
+keyword and issue/PR-reference evidence, then writes `reports/labels/label_audit.csv`
+and `reports/labels/label_audit_summary.json`. It does not automatically relabel files.
+Human reviewers must inspect linked issue/PR details and commit diffs before documenting
+false positives or missed positives. See `docs/swati_week3_label_validation.md`.
