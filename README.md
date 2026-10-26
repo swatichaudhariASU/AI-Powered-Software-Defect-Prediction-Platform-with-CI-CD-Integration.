@@ -117,8 +117,9 @@ After repository metrics and preliminary labels have been generated, run:
 ```bash
 python -m ml.src.build_features
 python -m ml.src.label_data
+python -m ml.src.validate_dataset
 python -m ml.src.train_models
 pytest -q
 ```
 
-The training script expects `data/processed/preliminary_dataset.csv`. Repository clones and generated CSVs are intentionally not included in this source ZIP. The keyword-based `candidate_defect` labels are noisy preliminary labels, not confirmed defect ground truth. See [`docs/swati_two_week_plan.md`](docs/swati_two_week_plan.md) for the ML work plan and limitations.
+

@@ -27,7 +27,17 @@ def test_training_compares_models_and_saves_artifact(tmp_path, monkeypatch):
 
     assert set(report["models"]) == {"logistic_regression", "random_forest"}
     assert report["selected_model"] in report["models"]
+    expected_metrics = {"precision", "recall", "f1", "pr_auc", "roc_auc"}
+    for model_metrics in report["models"].values():
+        assert expected_metrics.issubset(model_metrics)
+        for metric in ("precision", "recall", "f1", "pr_auc"):
+            assert 0.0 <= model_metrics[metric] <= 1.0
     assert (report_dir / "model_comparison.json").exists()
+    comparison_csv = pd.read_csv(report_dir / "model_comparison.csv")
+    assert set(comparison_csv["model"]) == {"logistic_regression", "random_forest"}
+    assert expected_metrics.issubset(comparison_csv.columns)
+    importance_csv = pd.read_csv(report_dir / "feature_importance.csv")
+    assert set(importance_csv["model"]) == {"logistic_regression", "random_forest"}
     assert (model_dir / "best_model.joblib").exists()
 
 
